@@ -1,4 +1,5 @@
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_mouse.h>
 #include <SDL2/SDL_pixels.h>
 #include <SDL2/SDL_render.h>
 #include <math.h>
@@ -78,6 +79,8 @@ static const SDL_Color orange = {0xff, 0xa5, 0x00, 0xff};
 static const vector_t i_pos = {100, 100};
 static const vector_t i_dir = {50, 0};
 static player_t player = {i_pos, i_dir};
+
+static int cur_mouse_x, cur_mouse_y, prev_mouse_x, prev_mouse_y;
 
 void load_map(const char* path) {
     FILE* map_file;
@@ -295,9 +298,17 @@ int main(int argc, char* argv[]) {
     SDL_Event event;
     bool quit = false;
 
+    SDL_GetMouseState(&cur_mouse_x, &cur_mouse_y);
+    prev_mouse_x = cur_mouse_x;
+    prev_mouse_y = cur_mouse_y;
+
     while (!quit) {
+        SDL_GetMouseState(&cur_mouse_x, &cur_mouse_y);
         set_window_color(renderer, black);
         set_window_color(top_renderer, black);
+
+        int mouse_delta = cur_mouse_x - prev_mouse_x;
+        printf("delta: %d\n", mouse_delta);
 
         // ------------------
         // Map Rendering
@@ -499,6 +510,8 @@ int main(int argc, char* argv[]) {
             player.pos.y = _new_pos.y;
         }
 
+        prev_mouse_x = cur_mouse_x;
+        prev_mouse_y = cur_mouse_y;
         SDL_Delay(DELTA_TIME);
     }
 
