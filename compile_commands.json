@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/home/pierre/Documents/better_raycasting/build",
+  "command": "/usr/bin/cc  -I/home/pierre/Documents/better_raycasting/headers -Wno-unused-variables -Wno-unused-const-variable -Wall -g -o CMakeFiles/raycasting.dir/sources/main.c.o -c /home/pierre/Documents/better_raycasting/sources/main.c",
+  "file": "/home/pierre/Documents/better_raycasting/sources/main.c",
+  "output": "CMakeFiles/raycasting.dir/sources/main.c.o"
+}
+]

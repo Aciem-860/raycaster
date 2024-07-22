@@ -1,4 +1,5 @@
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 #include <SDL2/SDL_mouse.h>
 #include <SDL2/SDL_pixels.h>
 #include <SDL2/SDL_render.h>
@@ -10,6 +11,8 @@
 
 #define TILE_WIDTH 64
 #define TILE_HEIGHT 64
+#define TEXTURE_WIDTH 64
+#define TEXTURE_HEIGHT 64
 #define MAP_WIDTH 21
 #define MAP_HEIGHT 21
 #define STEP_FORWARD 5
@@ -59,6 +62,9 @@ vector_t find_next_point(vector_t* pos, vector_t* dir);
 
 SDL_Color divide_by(SDL_Color c, int scalar);
 
+static const char* textures_path = "../wolftextures.png";
+SDL_Texture* texture;
+
 // 0: Empty
 // 1: Wall
 static char map[MAP_WIDTH][MAP_HEIGHT];
@@ -67,7 +73,7 @@ static const SDL_Color gray = {0x80, 0x80, 0x80, 0xff};
 static const SDL_Color black = {0x00, 0x00, 0x00, 0xff};
 static const SDL_Color red = {0xff, 0x00, 0x00, 0xff};
 static const SDL_Color green = {0x00, 0xff, 0x00, 0xff};
-static const SDL_Color blue = {0x00, 0x00, 0xff, 0xff};
+static const SDL_Color blue = {0x00, 0x00, 0x20, 0xff};
 static const SDL_Color purple = {0x80, 0x00, 0x80, 0xff};
 static const SDL_Color yellow = {0xff, 0xff, 0x00, 0xff};
 static const SDL_Color orange = {0xff, 0xa5, 0x00, 0xff};
@@ -83,8 +89,7 @@ void load_map(const char* path) {
     map_file = fopen(path, "r");
     char line[MAP_WIDTH + 1];
     int row = 0;
-    while (fgets(line, MAP_WIDTH + 1, map_file)) {
-        printf("%s", line);
+    while (fgets(line, MAP_WIDTH + 1, map_file) && row < MAP_HEIGHT) {
         if (strcmp(line, "\n")) {
             for (int col = 0; col < MAP_WIDTH; col++) {
                 map[row][col] = line[col];
@@ -93,9 +98,9 @@ void load_map(const char* path) {
         }
     }
 
-    for (int x = 0; x < MAP_WIDTH; x++) {
-        for (int y = 0; y < MAP_HEIGHT; y++) {
-            printf("%c ", map[x][y]);
+    for (int y = 0; y < MAP_HEIGHT; y++) {
+        for (int x = 0; x < MAP_WIDTH; x++) {
+            printf("%c ", map[y][x]);
         }
         printf("\n");
     }
@@ -248,6 +253,7 @@ double absd(double v) {
 int side = 0; // 0 = horizontal ; 1 = vertical
 
 int main(int argc, char* argv[]) {
+    SDL_Surface* texture_img = IMG_Load(textures_path);
     load_map("../map");
     double angle = 0; // Angle made by dir vector with horizontal axis (left to right)
     double step_forward, step_side;
@@ -293,13 +299,15 @@ int main(int argc, char* argv[]) {
     SDL_Event event;
     bool quit = false;
 
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    texture = SDL_CreateTextureFromSurface(renderer, texture_img);
     SDL_SetWindowGrab(main_window, SDL_TRUE);
     SDL_GetMouseState(&cur_mouse_x, &cur_mouse_y);
     prev_mouse_x = cur_mouse_x;
     prev_mouse_y = cur_mouse_y;
 
     while (!quit) {
-        set_window_color(renderer, black);
+        set_window_color(renderer, blue);
         // set_window_color(top_renderer, black);
 
         // ------------------
@@ -348,7 +356,7 @@ int main(int argc, char* argv[]) {
 
                 // Start by correction if a ray hits the top-left corner
                 if ((int)_hit.x % TILE_WIDTH == 0 && (int)_hit.y % TILE_HEIGHT == 0 &&
-                    map[_col][_row] == '.') {
+                    map[_row][_col] == '.') {
                     if (cy == -1) {
                         _row--;
                     }
@@ -368,7 +376,7 @@ int main(int argc, char* argv[]) {
                     exit(EXIT_FAILURE);
                 }
 
-                if (map[_col][_row] != '.') {
+                if (map[_row][_col] != '.') {
                     break;
                 }
                 p = _hit;
@@ -402,14 +410,22 @@ int main(int argc, char* argv[]) {
             // -------------------------------
 
             SDL_Color wall_color;
-            switch (map[_col][_row]) {
+            int _text_offset = 0;
+            switch (map[_row][_col]) {
             case 'b':
                 wall_color = blue;
+                _text_offset = 0;
                 break;
             case 'r':
+                _text_offset = 64;
                 wall_color = red;
                 break;
             case 'g':
+                _text_offset = 3 * 64;
+                wall_color = green;
+                break;
+            case 'w':
+                _text_offset = 7 * 64;
                 wall_color = green;
                 break;
             }
@@ -424,13 +440,17 @@ int main(int argc, char* argv[]) {
             double _distance = get_distance(&player.pos, &_hit);
             double _corrected_distance = get_cos(&_ray, &player.dir) * _distance;
             double _wall_height = 120 * WH / _corrected_distance;
-            SDL_RenderDrawLine(renderer, x, (WH - _wall_height) / 2, x, (WH + _wall_height) / 2);
+            double _frac_text = side == 0 ? _xmod : _ymod;
 
-            // SDL_Rect hit_block = {_col * TILE_WIDTH, _row * TILE_HEIGHT, TILE_WIDTH,
-            // TILE_HEIGHT};
-            // set_color(top_renderer, purple);
-            // SDL_RenderDrawLine(top_renderer, player.pos.x, player.pos.y, _hit.x, _hit.y);
-            // SDL_RenderFillRect(renderer, &hit_block);
+            SDL_Rect src = {_text_offset + _frac_text, 0, 1, 64};
+            SDL_Rect dst = {x, (WH - _wall_height) / 2, 1, _wall_height};
+            SDL_RenderCopy(renderer, texture, &src, &dst);
+            if (!side) {
+                SDL_Color _c = {0x0, 0x0, 0x0, 0x80};
+                set_color(renderer, _c);
+                SDL_RenderDrawLine(renderer, x, (WH - _wall_height) / 2, x,
+                                   (WH + _wall_height) / 2);
+            }
         }
 
         // ------------------
@@ -456,7 +476,6 @@ int main(int argc, char* argv[]) {
         if (abs(mouse_delta) < 100) {
             angle += (double)mouse_delta / 500;
         }
-
         SDL_RenderPresent(renderer);
 
         while (SDL_PollEvent(&event)) {
@@ -506,7 +525,10 @@ int main(int argc, char* argv[]) {
         vector_t _new_dir = add_vector(&_new_forward, &_new_side);
         vector_t _new_pos = add_vector(&player.pos, &_new_dir);
 
-        if (map[(int)(_new_pos.x / TILE_WIDTH)][(int)(_new_pos.y / TILE_HEIGHT)] == '.') {
+        int _x = (int)_new_pos.x;
+        int _y = (int)_new_pos.y;
+
+        if (map[_y / TILE_HEIGHT][_x / TILE_WIDTH] == '.') {
             player.pos.x = _new_pos.x;
             player.pos.y = _new_pos.y;
         }
@@ -525,6 +547,10 @@ Quit:
     if (NULL != top_window) {
         SDL_DestroyWindow(top_window);
     } */
+    SDL_FreeSurface(texture_img);
+    if (NULL != texture) {
+        SDL_DestroyTexture(texture);
+    }
     if (NULL != renderer) {
         SDL_DestroyRenderer(renderer);
     }
