@@ -245,6 +245,8 @@ double absd(double v) {
     return sgn * v;
 }
 
+int side = 0; // 0 = horizontal ; 1 = vertical
+
 int main(int argc, char* argv[]) {
     load_map("../map");
     double angle = 0; // Angle made by dir vector with horizontal axis (left to right)
@@ -369,19 +371,22 @@ int main(int argc, char* argv[]) {
                 p = _hit;
             }
 
-            if (_row == 0 || _row == MAP_HEIGHT - 1) {
-                hity = true;
-                hitx = false;
-            }
-            if (_col == 0 || _col == MAP_WIDTH - 1) {
-                hity = false;
-                hitx = true;
-            }
-
             // ----------------------
             // SHADING THE WALLS
             // ----------------------
-            if (hit_x()) {
+
+            int _x = (int)_hit.x;
+            int _y = (int)_hit.y;
+            int _xmod = _x % TILE_WIDTH;
+            int _ymod = _y % TILE_HEIGHT;
+
+            if (_xmod == 0 && _ymod != 0) {
+                side = 1;
+            } else if (_xmod != 0 && _ymod == 0) {
+                side = 0;
+            }
+
+            if (side) {
                 set_color(top_renderer, yellow);
             } else if (hit_y()) {
                 set_color(top_renderer, blue);
@@ -406,7 +411,7 @@ int main(int argc, char* argv[]) {
             }
 
             set_color(renderer, wall_color);
-            if (hit_x()) {
+            if (side) {
                 set_color(renderer, wall_color);
             } else {
                 SDL_Color _c = divide_by(wall_color, 2);
