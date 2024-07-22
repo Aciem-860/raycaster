@@ -5,14 +5,15 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define TILE_WIDTH 64
 #define TILE_HEIGHT 64
-#define MAP_WIDTH 10
-#define MAP_HEIGHT 10
-#define STEP_FORWARD 20
-#define STEP_SIDE 20
+#define MAP_WIDTH 21
+#define MAP_HEIGHT 21
+#define STEP_FORWARD 5
+#define STEP_SIDE 5
 #define DELTA_TIME 10
 #define ANGLE_STEP DEG_TO_RAG(10)
 #define RAY_NUMBER 40.0
@@ -60,12 +61,7 @@ SDL_Color divide_by(SDL_Color c, int scalar);
 
 // 0: Empty
 // 1: Wall
-static char map[MAP_WIDTH][MAP_HEIGHT] = {
-    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, {1, 0, 0, 0, 0, 1, 0, 0, 0, 1}, {1, 0, 0, 0, 1, 1, 1, 0, 0, 1},
-    {1, 0, 0, 0, 1, 0, 0, 0, 0, 1}, {1, 1, 0, 0, 0, 0, 0, 1, 1, 1}, {1, 1, 0, 0, 0, 1, 1, 1, 0, 1},
-    {1, 0, 0, 1, 1, 1, 0, 0, 0, 1}, {1, 0, 0, 0, 0, 0, 0, 0, 0, 1}, {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1}};
-
+static char map[MAP_WIDTH][MAP_HEIGHT];
 static const SDL_Color white = {0xff, 0xff, 0xff, 0xff};
 static const SDL_Color gray = {0x80, 0x80, 0x80, 0xff};
 static const SDL_Color black = {0x00, 0x00, 0x00, 0xff};
@@ -88,6 +84,7 @@ void load_map(const char* path) {
     char line[MAP_WIDTH + 1];
     int row = 0;
     while (fgets(line, MAP_WIDTH + 1, map_file)) {
+        printf("%s", line);
         if (strcmp(line, "\n")) {
             for (int col = 0; col < MAP_WIDTH; col++) {
                 map[row][col] = line[col];
@@ -259,8 +256,8 @@ int main(int argc, char* argv[]) {
     SDL_Window* main_window = NULL;
     SDL_Renderer* renderer = NULL;
 
-    SDL_Window* top_window = NULL;
-    SDL_Renderer* top_renderer = NULL;
+    // SDL_Window* top_window = NULL;
+    // SDL_Renderer* top_renderer = NULL;
 
     int status = EXIT_FAILURE;
 
@@ -282,39 +279,34 @@ int main(int argc, char* argv[]) {
         goto Quit;
     }
 
-    top_window = SDL_CreateWindow("Top Down View", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                  640, 640, SDL_WINDOW_SHOWN);
-    if (NULL == top_window) {
-        fprintf(stderr, "Error on SDL_CreateWindow: %s", SDL_GetError());
-        goto Quit;
+    /* top_window = SDL_CreateWindow("Top Down View", SDL_WINDOWPOS_CENTERED,
+    SDL_WINDOWPOS_CENTERED, 640, 640, SDL_WINDOW_SHOWN); if (NULL == top_window) { fprintf(stderr,
+    "Error on SDL_CreateWindow: %s", SDL_GetError()); goto Quit;
     }
 
     top_renderer = SDL_CreateRenderer(top_window, -1, SDL_RENDERER_ACCELERATED);
     if (NULL == top_renderer) {
         fprintf(stderr, "Error on SDL_CreateRenderer: %s", SDL_GetError());
         goto Quit;
-    }
+    } */
 
     SDL_Event event;
     bool quit = false;
 
+    SDL_SetWindowGrab(main_window, SDL_TRUE);
     SDL_GetMouseState(&cur_mouse_x, &cur_mouse_y);
     prev_mouse_x = cur_mouse_x;
     prev_mouse_y = cur_mouse_y;
 
     while (!quit) {
-        SDL_GetMouseState(&cur_mouse_x, &cur_mouse_y);
         set_window_color(renderer, black);
-        set_window_color(top_renderer, black);
-
-        int mouse_delta = cur_mouse_x - prev_mouse_x;
-        printf("delta: %d\n", mouse_delta);
+        // set_window_color(top_renderer, black);
 
         // ------------------
         // Map Rendering
         // ------------------
 
-        set_color(top_renderer, gray);
+        /* set_color(top_renderer, gray);
         for (int x = 0; x < MAP_WIDTH; x++) {
             for (int y = 0; y < MAP_HEIGHT; y++) {
                 if (map[x][y] != '.') {
@@ -322,15 +314,15 @@ int main(int argc, char* argv[]) {
                     SDL_RenderFillRect(top_renderer, &_wall);
                 }
             }
-        }
+        } */
 
-        set_color(top_renderer, red);
+        /* set_color(top_renderer, red);
         for (int x = 0; x < MAP_WIDTH; x++) {
             for (int y = 0; y < MAP_HEIGHT; y++) {
                 SDL_RenderDrawLine(top_renderer, x * TILE_WIDTH, 0, x * TILE_WIDTH, 640);
                 SDL_RenderDrawLine(top_renderer, 0, y * TILE_HEIGHT, WW, y * TILE_HEIGHT);
             }
-        }
+        } */
 
         // ------------------
         // RAYCASTING
@@ -349,7 +341,7 @@ int main(int argc, char* argv[]) {
             int _col, _row;
             for (int i = 0; i < 30; i++) {
                 _hit = find_next_point(&p, &_ray);
-                set_color(top_renderer, yellow);
+                // set_color(top_renderer, yellow);
 
                 _col = (int)_hit.x / TILE_WIDTH;
                 _row = (int)_hit.y / TILE_HEIGHT;
@@ -397,13 +389,14 @@ int main(int argc, char* argv[]) {
                 side = 0;
             }
 
-            if (side) {
+            /* if (side) {
                 set_color(top_renderer, yellow);
             } else if (hit_y()) {
                 set_color(top_renderer, blue);
             }
             SDL_Rect hit_rect = {_hit.x, _hit.y, 2, 2};
-            SDL_RenderFillRect(top_renderer, &hit_rect);
+            SDL_RenderFillRect(top_renderer, &hit_rect); */
+
             // -------------------------------
             // Rendering the wall stripe
             // -------------------------------
@@ -448,16 +441,24 @@ int main(int argc, char* argv[]) {
         step_forward = 0;
         step_side = 0;
 
-        // Player dot and direction
-        set_color(top_renderer, yellow);
-        SDL_Rect player_rect = {player.pos.x - 2.5, player.pos.y - 2.5, 5, 5};
-        SDL_RenderFillRect(top_renderer, &player_rect);
+        // -----------------------------
+        // Handling mouse for vision
+        // -----------------------------
 
-        vector_t _dir_pos = add_vector(&player.pos, &player.dir);
-        SDL_RenderDrawLine(top_renderer, player.pos.x, player.pos.y, _dir_pos.x, _dir_pos.y);
+        SDL_GetMouseState(&cur_mouse_x, &cur_mouse_y);
+        if (cur_mouse_x < 5) {
+            SDL_WarpMouseInWindow(main_window, WW - 10, cur_mouse_y);
+        } else if (cur_mouse_x > WW - 5) {
+            SDL_WarpMouseInWindow(main_window, 10, cur_mouse_y);
+        }
+
+        int mouse_delta = prev_mouse_x - cur_mouse_x;
+        if (abs(mouse_delta) < 100) {
+            angle += (double)mouse_delta / 500;
+        }
 
         SDL_RenderPresent(renderer);
-        SDL_RenderPresent(top_renderer);
+
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
             case SDL_KEYDOWN:
@@ -518,12 +519,12 @@ int main(int argc, char* argv[]) {
     status = EXIT_SUCCESS;
 
 Quit:
-    if (NULL != top_renderer) {
+    /* if (NULL != top_renderer) {
         SDL_DestroyRenderer(top_renderer);
     }
     if (NULL != top_window) {
         SDL_DestroyWindow(top_window);
-    }
+    } */
     if (NULL != renderer) {
         SDL_DestroyRenderer(renderer);
     }
