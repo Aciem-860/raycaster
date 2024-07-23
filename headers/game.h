@@ -2,6 +2,7 @@
 #define GAME_H
 
 #include "constants.h"
+#include "sprite.h"
 #include "vector.h"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
@@ -20,7 +21,8 @@
 // World map
 // ---------------
 
-static char map[MAP_WIDTH][MAP_HEIGHT];
+static char map[MAP_HEIGHT][MAP_WIDTH];
+extern prop_t props[MAP_HEIGHT * MAP_WIDTH];
 
 // ---------------
 // Textures

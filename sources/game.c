@@ -1,5 +1,10 @@
 #include "game.h"
+#include "sprite.h"
 #include "utils.h"
+#include "vector.h"
+#include <SDL2/SDL_image.h>
+#include <SDL2/SDL_render.h>
+#include <SDL2/SDL_surface.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -160,6 +165,7 @@ int start() {
 
     // Loading the map
     load_map("../map");
+    load_sprite_map("../sprite_map");
 
     // --------------------
     // Main game loop
@@ -170,7 +176,7 @@ int start() {
 
         // Clear the screen
         set_window_color(renderer, blue);
-        cam_seg = camera_segment(player);
+        cam_seg = mult_vector(camera_segment(player), tan(FOVR / 2));
 
         // -----------------
         // Floor casting
@@ -224,6 +230,8 @@ int start() {
         // ---------------
 
         SDL_SetRenderTarget(renderer, wall_texture);
+        double wall_distance[(int)WW];
+
         for (int x = 0; x < WW; x++) {
             double _frac = -((2.0 * x / WW) - 1);
             vector_t _cam_ray = mult_vector(cam_seg, _frac);
@@ -312,9 +320,10 @@ int start() {
             }
 
             double _distance = get_distance(player.pos, _hit);
-            double _corrected_distance = get_cos(_ray, player.dir) * _distance;
-            double _wall_height = 64 * WH / _corrected_distance;
+            double _orthogonal_distance = get_cos(_ray, player.dir) * _distance;
+            double _wall_height = 64 * WH / _orthogonal_distance;
             double _frac_text = side == 0 ? _xmod : _ymod;
+            wall_distance[x] = _orthogonal_distance;
 
             SDL_Rect src = {_text_offset + _frac_text, 0, 1, TEXTURE_HEIGHT};
             SDL_Rect dst = {x, (WH - _wall_height) / 2, 1, _wall_height};
@@ -324,6 +333,46 @@ int start() {
                 set_color(renderer, _c);
                 SDL_RenderDrawLine(renderer, x, (WH - _wall_height) / 2, x,
                                    (WH + _wall_height) / 2);
+            }
+        }
+
+        // ---------------------
+        // Rendering props
+        // ---------------------
+
+        SDL_Surface* prop_surf;
+        SDL_Texture* prop_text;
+        for (int prop = 0; prop < prop_number; prop++) {
+            // Ray from player to the prop
+            vector_t ray = sub_vector(props[prop].position, player.pos);
+            double c = get_cos(ray, player.dir); // Cosine
+            double s = get_cos(ray, cam_seg);    // Sine
+            double phi = acos(c);
+            double distance = norm2(ray);
+            double orth_distance = distance * c;                         // Orthogonal distance
+            double x_offset = (WW / 2) * (distance * s) / orth_distance; // X-axis offset
+
+            if (phi < FOVR / 2) {
+                double w, h;
+                w = 700 * 64 / orth_distance; // Number of column needed
+                h = 700 * 64 / orth_distance;
+
+                sprite_t sp = get_sprite(props[prop].type);
+                prop_surf = IMG_Load(sp.path);
+                prop_text = SDL_CreateTextureFromSurface(renderer, prop_surf);
+                SDL_SetRenderTarget(renderer, prop_text);
+
+                for (int x = 0; x < w; x++) {
+                    int _x = x * 64 / w;
+                    if (orth_distance < wall_distance[(int)(WW / 2 - x_offset - w / 2 + x)]) {
+                        sprite_t sp = get_sprite(props[prop].type);
+                        SDL_Rect _src = {_x, 0, 1, TILE_HEIGHT};
+                        SDL_Rect _dst = {WW / 2 - x_offset - w / 2 + x, WH / 2 - h / 2, 1, h};
+                        SDL_RenderCopy(renderer, prop_text, &_src, &_dst);
+                    }
+                }
+                SDL_DestroyTexture(prop_text);
+                SDL_FreeSurface(prop_surf);
             }
         }
 
