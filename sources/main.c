@@ -2,12 +2,17 @@
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_mouse.h>
 #include <SDL2/SDL_pixels.h>
+#include <SDL2/SDL_rect.h>
 #include <SDL2/SDL_render.h>
+#include <SDL2/SDL_ttf.h>
+#include <bits/types/struct_timeval.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 
 #define TILE_WIDTH 64
 #define TILE_HEIGHT 64
@@ -19,10 +24,9 @@
 #define STEP_SIDE 5
 #define DELTA_TIME 10
 #define ANGLE_STEP DEG_TO_RAG(10)
-#define RAY_NUMBER 40.0
 
 #define WW 640.0 // Window width
-#define WH 480.0 // Window height
+#define WH 320.0 // Window height
 #define FOV 66.0 // Field of view in degrees
 #define DEG_TO_RAG(x) (x * M_PI / 180)
 #define FOVR DEG_TO_RAG(FOV)
@@ -45,20 +49,20 @@ bool forward_x();
 bool forward_y();
 
 double absd(double v);
-double norm2(vector_t* v);
-double differential(vector_t* v);
-double get_distance(vector_t* v1, vector_t* v2);
-double dot_product(vector_t* v1, vector_t* v2);
-double get_cos(vector_t* v1, vector_t* v2);
+double norm2(vector_t v);
+double differential(vector_t v);
+double get_distance(vector_t v1, vector_t v2);
+double dot_product(vector_t v1, vector_t v2);
+double get_cos(vector_t v1, vector_t v2);
 
-vector_t rotate_vector(vector_t* v, double angle);
-vector_t get_orthogonal(vector_t* v);
-vector_t add_vector(vector_t* v1, vector_t* v2);
-vector_t sub_vector(vector_t* v1, vector_t* v2);
-vector_t mult_vector(vector_t* v, double scalar);
-vector_t normalize_vector(vector_t* v);
-vector_t camera_segment(player_t* p);
-vector_t find_next_point(vector_t* pos, vector_t* dir);
+vector_t rotate_vector(vector_t v, double angle);
+vector_t get_orthogonal(vector_t v);
+vector_t add_vector(vector_t v1, vector_t v2);
+vector_t sub_vector(vector_t v1, vector_t v2);
+vector_t mult_vector(vector_t v, double scalar);
+vector_t normalize_vector(vector_t v);
+vector_t camera_segment(player_t p);
+vector_t find_next_point(vector_t pos, vector_t dir);
 
 SDL_Color divide_by(SDL_Color c, int scalar);
 
@@ -79,10 +83,11 @@ static const SDL_Color yellow = {0xff, 0xff, 0x00, 0xff};
 static const SDL_Color orange = {0xff, 0xa5, 0x00, 0xff};
 
 static const vector_t i_pos = {100, 100};
-static const vector_t i_dir = {50, 0};
+static const vector_t i_dir = {1, 0};
 static player_t player = {i_pos, i_dir};
 
 static int cur_mouse_x, cur_mouse_y, prev_mouse_x, prev_mouse_y;
+static uint32_t start_ticks, frame_ticks;
 
 void load_map(const char* path) {
     FILE* map_file;
@@ -125,49 +130,49 @@ bool set_window_color(SDL_Renderer* renderer, SDL_Color color) {
     return true;
 }
 
-vector_t rotate_vector(vector_t* v, double angle) {
-    vector_t ret = {cos(angle) * v->x + sin(angle) * v->y, -sin(angle) * v->x + cos(angle) * v->y};
+vector_t rotate_vector(vector_t v, double angle) {
+    vector_t ret = {cos(angle) * v.x + sin(angle) * v.y, -sin(angle) * v.x + cos(angle) * v.y};
     return ret;
 }
 
-vector_t get_orthogonal(vector_t* v) { return rotate_vector(v, M_PI / 2); }
+vector_t get_orthogonal(vector_t v) { return rotate_vector(v, M_PI / 2); }
 
-vector_t add_vector(vector_t* v1, vector_t* v2) {
-    vector_t ret = {v1->x + v2->x, v1->y + v2->y};
+vector_t add_vector(vector_t v1, vector_t v2) {
+    vector_t ret = {v1.x + v2.x, v1.y + v2.y};
     return ret;
 }
 
-vector_t sub_vector(vector_t* v1, vector_t* v2) {
+vector_t sub_vector(vector_t v1, vector_t v2) {
     vector_t opposite = mult_vector(v2, -1);
-    return add_vector(v1, &opposite);
+    return add_vector(v1, opposite);
 }
 
-vector_t mult_vector(vector_t* v, double scalar) {
-    vector_t ret = {scalar * v->x, scalar * v->y};
+vector_t mult_vector(vector_t v, double scalar) {
+    vector_t ret = {scalar * v.x, scalar * v.y};
     return ret;
 }
 
-double norm2(vector_t* v) {
-    double x2 = pow(v->x, 2.0);
-    double y2 = pow(v->y, 2.0);
+double norm2(vector_t v) {
+    double x2 = pow(v.x, 2.0);
+    double y2 = pow(v.y, 2.0);
     return sqrt(x2 + y2);
 }
 
-vector_t normalize_vector(vector_t* v) {
+vector_t normalize_vector(vector_t v) {
     double norm = norm2(v);
-    vector_t ret = {v->x / norm, v->y / norm};
+    vector_t ret = {v.x / norm, v.y / norm};
     return ret;
 }
 
-vector_t camera_segment(player_t* p) {
-    vector_t raw_rotated_dir = get_orthogonal(&(p->dir));
-    vector_t norm_rotated_dir = normalize_vector(&raw_rotated_dir);
-    vector_t rotated_dir = mult_vector(&norm_rotated_dir, 25 * tan(FOVR / 2));
+vector_t camera_segment(player_t p) {
+    vector_t raw_rotated_dir = get_orthogonal(p.dir);
+    vector_t norm_rotated_dir = normalize_vector(raw_rotated_dir);
+    // vector_t rotated_dir = mult_vector(&norm_rotated_dir, 25 * tan(FOVR / 2));
 
-    return rotated_dir;
+    return norm_rotated_dir;
 }
 
-double differential(vector_t* v) { return v->y / v->x; }
+double differential(vector_t v) { return v.y / v.x; }
 
 SDL_Color divide_by(SDL_Color c, int scalar) {
     SDL_Color _ret = {c.r / scalar, c.g / scalar, c.b / scalar, c.a};
@@ -191,59 +196,59 @@ bool hit_y() { return hity; }
 bool forward_x() { return cx == 1 ? true : false; }
 bool forward_y() { return cy == 1 ? true : false; }
 
-vector_t find_next_point(vector_t* pos, vector_t* dir) {
+vector_t find_next_point(vector_t pos, vector_t dir) {
     double dydx = differential(dir);
     double _x, _y;
 
     vector_t dx;
     vector_t dy;
 
-    cx = dir->x > 0 ? 1 : -1;
-    cy = dir->y > 0 ? 1 : -1;
+    cx = dir.x > 0 ? 1 : -1;
+    cy = dir.y > 0 ? 1 : -1;
 
     // ---------- //
     //   X axis   //
     // ---------- //
 
-    if (dir->x > 0) { // Oriented to right
-        _x = TILE_WIDTH - (int)(pos->x) % TILE_WIDTH;
+    if (dir.x > 0) { // Oriented to right
+        _x = TILE_WIDTH - (int)(pos.x) % TILE_WIDTH;
     } else { // Oriented to left
-        _x = -(int)(pos->x) % TILE_WIDTH;
+        _x = -(int)(pos.x) % TILE_WIDTH;
         if (_x == 0)
             _x = -TILE_WIDTH;
     }
     vector_t _dx = {_x, _x * dydx};
     dx = _dx;
 
-    if (dir->y > 0) { // Oriented to down
-        _y = TILE_HEIGHT - (int)(pos->y) % TILE_HEIGHT;
+    if (dir.y > 0) { // Oriented to down
+        _y = TILE_HEIGHT - (int)(pos.y) % TILE_HEIGHT;
     } else { // Oriented to top
-        _y = -(int)(pos->y) % TILE_HEIGHT;
+        _y = -(int)(pos.y) % TILE_HEIGHT;
         if (_y == 0)
             _y = -TILE_HEIGHT;
     }
     vector_t _dy = {_y / dydx, _y};
     dy = _dy;
 
-    if (norm2(&dy) < norm2(&dx)) {
+    if (norm2(dy) < norm2(dx)) {
         hity = true;
         hitx = false;
-        return add_vector(pos, &dy);
+        return add_vector(pos, dy);
     } else {
         hity = false;
         hitx = true;
-        return add_vector(pos, &dx);
+        return add_vector(pos, dx);
     }
 }
 
-double get_distance(vector_t* v1, vector_t* v2) {
+double get_distance(vector_t v1, vector_t v2) {
     vector_t _diff = sub_vector(v2, v1);
-    return norm2(&_diff);
+    return norm2(_diff);
 }
 
-double dot_product(vector_t* v1, vector_t* v2) { return v1->x * v2->x + v1->y * v2->y; }
+double dot_product(vector_t v1, vector_t v2) { return v1.x * v2.x + v1.y * v2.y; }
 
-double get_cos(vector_t* v1, vector_t* v2) { return dot_product(v1, v2) / (norm2(v1) * norm2(v2)); }
+double get_cos(vector_t v1, vector_t v2) { return dot_product(v1, v2) / (norm2(v1) * norm2(v2)); }
 
 double absd(double v) {
     int sgn = v > 0 ? 1 : -1;
@@ -253,6 +258,9 @@ double absd(double v) {
 int side = 0; // 0 = horizontal ; 1 = vertical
 
 int main(int argc, char* argv[]) {
+    const int screen_fps = 60;
+    const int screen_ticks_per_frame = 1000 / screen_fps;
+
     SDL_Surface* texture_img = IMG_Load(textures_path);
     load_map("../map");
     double angle = 0; // Angle made by dir vector with horizontal axis (left to right)
@@ -285,16 +293,17 @@ int main(int argc, char* argv[]) {
         goto Quit;
     }
 
-    /* top_window = SDL_CreateWindow("Top Down View", SDL_WINDOWPOS_CENTERED,
-    SDL_WINDOWPOS_CENTERED, 640, 640, SDL_WINDOW_SHOWN); if (NULL == top_window) { fprintf(stderr,
-    "Error on SDL_CreateWindow: %s", SDL_GetError()); goto Quit;
+    if (TTF_Init() < 0) {
+        fprintf(stderr, "Error on TTF_Init: %s", TTF_GetError());
+        goto Quit;
     }
 
-    top_renderer = SDL_CreateRenderer(top_window, -1, SDL_RENDERER_ACCELERATED);
-    if (NULL == top_renderer) {
-        fprintf(stderr, "Error on SDL_CreateRenderer: %s", SDL_GetError());
+    TTF_Font* font;
+    font = TTF_OpenFont("../Monocraft-nerd-fonts-patched.ttf", 24);
+    if (!font) {
+        fprintf(stderr, "Error at font loading: %s", TTF_GetError());
         goto Quit;
-    } */
+    }
 
     SDL_Event event;
     bool quit = false;
@@ -306,49 +315,64 @@ int main(int argc, char* argv[]) {
     prev_mouse_x = cur_mouse_x;
     prev_mouse_y = cur_mouse_y;
 
+    double fps = 0;
     while (!quit) {
+        start_ticks = SDL_GetTicks();
         set_window_color(renderer, blue);
-        // set_window_color(top_renderer, black);
-
-        // ------------------
-        // Map Rendering
-        // ------------------
-
-        /* set_color(top_renderer, gray);
-        for (int x = 0; x < MAP_WIDTH; x++) {
-            for (int y = 0; y < MAP_HEIGHT; y++) {
-                if (map[x][y] != '.') {
-                    SDL_Rect _wall = {x * TILE_WIDTH, y * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT};
-                    SDL_RenderFillRect(top_renderer, &_wall);
-                }
-            }
-        } */
-
-        /* set_color(top_renderer, red);
-        for (int x = 0; x < MAP_WIDTH; x++) {
-            for (int y = 0; y < MAP_HEIGHT; y++) {
-                SDL_RenderDrawLine(top_renderer, x * TILE_WIDTH, 0, x * TILE_WIDTH, 640);
-                SDL_RenderDrawLine(top_renderer, 0, y * TILE_HEIGHT, WW, y * TILE_HEIGHT);
-            }
-        } */
-
-        // ------------------
-        // RAYCASTING
-        // ------------------
-
-        cam_seg = camera_segment(&player);
+        cam_seg = camera_segment(player);
         // Launch one ray by column
+
+        // -----------------
+        // Floor casting
+        // -----------------
+
+        for (int y = 0; y < WH / 2; y++) {
+            double z = WH / 2;
+            // Use Thales' Theorem and similar triangle
+            double d = 64 * z / y; // d is the horizontal distance to the ground
+            vector_t dir = mult_vector(player.dir, d);
+            vector_t cam = mult_vector(cam_seg, d);
+            vector_t lray = add_vector(player.pos, add_vector(dir, cam));
+            vector_t rray = add_vector(player.pos, add_vector(dir, mult_vector(cam, -1)));
+
+            double floor_step_x = (rray.x - lray.x) / WW;
+            double floor_step_y = (rray.y - lray.y) / WW;
+
+            vector_t floor = {lray.x, lray.y};
+
+            for (int x = 0; x < WW; x++) {
+                int tx = (int)floor.x % TEXTURE_WIDTH;
+                int ty = (int)floor.y % TEXTURE_HEIGHT;
+                floor.x += floor_step_x;
+                floor.y += floor_step_y;
+
+                // Floor
+                SDL_Rect cl_src = {6 * TEXTURE_WIDTH + tx, ty, 1, 1};
+                SDL_Rect cl_dst = {x, WH / 2 + y, 1, 1};
+                SDL_RenderCopy(renderer, texture, &cl_src, &cl_dst);
+
+                // Ceiling
+                SDL_Rect fl_src = {3 * TEXTURE_WIDTH + tx, ty, 1, 1};
+                SDL_Rect fl_dst = {x, WH / 2 - y, 1, 1};
+                SDL_RenderCopy(renderer, texture, &fl_src, &fl_dst);
+            }
+        }
+
+        // ---------------
+        // Wall casting
+        // ---------------
+
         for (int x = 0; x < WW; x++) {
             set_color(renderer, orange);
             double _frac = -((2.0 * x / WW) - 1);
-            vector_t _cam_ray = mult_vector(&cam_seg, _frac);
-            vector_t _ray = add_vector(&(player.dir), &_cam_ray);
-            vector_t _hit = find_next_point(&player.pos, &_ray); // Intersection with grid
+            vector_t _cam_ray = mult_vector(cam_seg, _frac);
+            vector_t _ray = add_vector((player.dir), _cam_ray);
+            vector_t _hit = find_next_point(player.pos, _ray); // Intersection with grid
 
             vector_t p = player.pos;
             int _col, _row;
             for (int i = 0; i < 30; i++) {
-                _hit = find_next_point(&p, &_ray);
+                _hit = find_next_point(p, _ray);
                 // set_color(top_renderer, yellow);
 
                 _col = (int)_hit.x / TILE_WIDTH;
@@ -397,17 +421,9 @@ int main(int argc, char* argv[]) {
                 side = 0;
             }
 
-            /* if (side) {
-                set_color(top_renderer, yellow);
-            } else if (hit_y()) {
-                set_color(top_renderer, blue);
-            }
-            SDL_Rect hit_rect = {_hit.x, _hit.y, 2, 2};
-            SDL_RenderFillRect(top_renderer, &hit_rect); */
-
-            // -------------------------------
-            // Rendering the wall stripe
-            // -------------------------------
+            // ------------------------------------
+            // Rendering the wall vertical stripe
+            // ------------------------------------
 
             SDL_Color wall_color;
             int _text_offset = 0;
@@ -417,15 +433,15 @@ int main(int argc, char* argv[]) {
                 _text_offset = 0;
                 break;
             case 'r':
-                _text_offset = 64;
+                _text_offset = TEXTURE_WIDTH;
                 wall_color = red;
                 break;
             case 'g':
-                _text_offset = 3 * 64;
+                _text_offset = 3 * TEXTURE_WIDTH;
                 wall_color = green;
                 break;
             case 'w':
-                _text_offset = 7 * 64;
+                _text_offset = 7 * TEXTURE_WIDTH;
                 wall_color = green;
                 break;
             }
@@ -437,12 +453,12 @@ int main(int argc, char* argv[]) {
                 SDL_Color _c = divide_by(wall_color, 2);
                 set_color(renderer, _c);
             }
-            double _distance = get_distance(&player.pos, &_hit);
-            double _corrected_distance = get_cos(&_ray, &player.dir) * _distance;
-            double _wall_height = 120 * WH / _corrected_distance;
+            double _distance = get_distance(player.pos, _hit);
+            double _corrected_distance = get_cos(_ray, player.dir) * _distance;
+            double _wall_height = 64 * WH / _corrected_distance;
             double _frac_text = side == 0 ? _xmod : _ymod;
 
-            SDL_Rect src = {_text_offset + _frac_text, 0, 1, 64};
+            SDL_Rect src = {_text_offset + _frac_text, 0, 1, TEXTURE_HEIGHT};
             SDL_Rect dst = {x, (WH - _wall_height) / 2, 1, _wall_height};
             SDL_RenderCopy(renderer, texture, &src, &dst);
             if (!side) {
@@ -452,6 +468,19 @@ int main(int argc, char* argv[]) {
                                    (WH + _wall_height) / 2);
             }
         }
+
+        // ---------------------
+        // Framerate printing
+        // ---------------------
+
+        SDL_Surface* text;
+        char* framerate_txt;
+        asprintf(&framerate_txt, "FPS: %f", fps);
+        text = TTF_RenderText_Solid(font, framerate_txt, yellow);
+        SDL_Texture* text_texture;
+        text_texture = SDL_CreateTextureFromSurface(renderer, text);
+        SDL_Rect _text_pos = {0, 0, text->w, text->h};
+        SDL_RenderCopy(renderer, text_texture, NULL, &_text_pos);
 
         // ------------------
         // SDL Rendering
@@ -476,6 +505,7 @@ int main(int argc, char* argv[]) {
         if (abs(mouse_delta) < 100) {
             angle += (double)mouse_delta / 500;
         }
+
         SDL_RenderPresent(renderer);
 
         while (SDL_PollEvent(&event)) {
@@ -515,15 +545,15 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        vector_t _rot_dir = rotate_vector(&player.dir, angle);
+        vector_t _rot_dir = rotate_vector(player.dir, angle);
         player.dir = _rot_dir;
 
-        vector_t _norm_dir = normalize_vector(&_rot_dir);
-        vector_t _orth_dir = get_orthogonal(&_norm_dir);
-        vector_t _new_forward = mult_vector(&_norm_dir, step_forward);
-        vector_t _new_side = mult_vector(&_orth_dir, step_side);
-        vector_t _new_dir = add_vector(&_new_forward, &_new_side);
-        vector_t _new_pos = add_vector(&player.pos, &_new_dir);
+        vector_t _norm_dir = normalize_vector(_rot_dir);
+        vector_t _orth_dir = get_orthogonal(_norm_dir);
+        vector_t _new_forward = mult_vector(_norm_dir, step_forward);
+        vector_t _new_side = mult_vector(_orth_dir, step_side);
+        vector_t _new_dir = add_vector(_new_forward, _new_side);
+        vector_t _new_pos = add_vector(player.pos, _new_dir);
 
         int _x = (int)_new_pos.x;
         int _y = (int)_new_pos.y;
@@ -535,18 +565,18 @@ int main(int argc, char* argv[]) {
 
         prev_mouse_x = cur_mouse_x;
         prev_mouse_y = cur_mouse_y;
-        SDL_Delay(DELTA_TIME);
+
+        frame_ticks = SDL_GetTicks() - start_ticks;
+        if (frame_ticks < screen_ticks_per_frame) {
+            SDL_Delay(screen_ticks_per_frame - frame_ticks);
+        }
+
+        fps = 1000.0 / frame_ticks;
     }
 
     status = EXIT_SUCCESS;
 
 Quit:
-    /* if (NULL != top_renderer) {
-        SDL_DestroyRenderer(top_renderer);
-    }
-    if (NULL != top_window) {
-        SDL_DestroyWindow(top_window);
-    } */
     SDL_FreeSurface(texture_img);
     if (NULL != texture) {
         SDL_DestroyTexture(texture);
