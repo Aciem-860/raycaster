@@ -4,6 +4,7 @@
 #include <SDL2/SDL_pixels.h>
 #include <SDL2/SDL_rect.h>
 #include <SDL2/SDL_render.h>
+#include <SDL2/SDL_surface.h>
 #include <SDL2/SDL_ttf.h>
 #include <bits/types/struct_timeval.h>
 #include <math.h>
@@ -255,7 +256,51 @@ double absd(double v) {
     return sgn * v;
 }
 
+Uint32 get_pixel(SDL_Surface* surface, int x, int y) {
+    if (SDL_MUSTLOCK(surface)) {
+        SDL_LockSurface(surface);
+    }
+
+    int bpp = surface->format->BytesPerPixel;
+    Uint8* p = (Uint8*)surface->pixels + y * surface->pitch + x * bpp;
+    Uint32 pixel;
+
+    switch (bpp) {
+    case 1:
+        pixel = *p;
+        break;
+    case 2:
+        pixel = *(Uint16*)p;
+        break;
+    case 3:
+        if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
+            pixel = p[0] << 16 | p[1] << 8 | p[2];
+        } else {
+            pixel = p[0] | p[1] << 8 | p[2] << 16;
+        }
+        break;
+    case 4:
+        pixel = *(Uint32*)p;
+        break;
+    default:
+        pixel = 0; // Format not handled
+        break;
+    }
+
+    if (SDL_MUSTLOCK(surface)) {
+        SDL_UnlockSurface(surface);
+    }
+    return pixel;
+}
+
 int side = 0; // 0 = horizontal ; 1 = vertical
+
+Uint32 correct_pixel(Uint32 pixel, SDL_Surface* surface) {
+    Uint8 r, g, b;
+    SDL_GetRGB(pixel, surface->format, &r, &g, &b);
+    Uint32 ret = b + (g << 8) + (r << 16);
+    return ret;
+}
 
 int main(int argc, char* argv[]) {
     const int screen_fps = 60;
@@ -269,9 +314,6 @@ int main(int argc, char* argv[]) {
 
     SDL_Window* main_window = NULL;
     SDL_Renderer* renderer = NULL;
-
-    // SDL_Window* top_window = NULL;
-    // SDL_Renderer* top_renderer = NULL;
 
     int status = EXIT_FAILURE;
 
@@ -318,16 +360,20 @@ int main(int argc, char* argv[]) {
     double fps = 0;
     while (!quit) {
         start_ticks = SDL_GetTicks();
+        // Clear the screen
         set_window_color(renderer, blue);
         cam_seg = camera_segment(player);
-        // Launch one ray by column
+        // Launch one ray per column and per row
 
         // -----------------
         // Floor casting
         // -----------------
 
+        Uint32 buffer[(int)WW * (int)WH];
+        SDL_Texture* floor_texture =
+            SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, WW, WH);
         for (int y = 0; y < WH / 2; y++) {
-            double z = WH / 2;
+            double z = 320.0 / 2;
             // Use Thales' Theorem and similar triangle
             double d = 64 * z / y; // d is the horizontal distance to the ground
             vector_t dir = mult_vector(player.dir, d);
@@ -341,27 +387,36 @@ int main(int argc, char* argv[]) {
             vector_t floor = {lray.x, lray.y};
 
             for (int x = 0; x < WW; x++) {
-                int tx = (int)floor.x % TEXTURE_WIDTH;
+                int tx_fl = 6 * TEXTURE_WIDTH + (int)floor.x % TEXTURE_WIDTH;
+                int tx_cl = 4 * TEXTURE_WIDTH + (int)floor.x % TEXTURE_WIDTH;
                 int ty = (int)floor.y % TEXTURE_HEIGHT;
                 floor.x += floor_step_x;
                 floor.y += floor_step_y;
 
-                // Floor
-                SDL_Rect cl_src = {6 * TEXTURE_WIDTH + tx, ty, 1, 1};
-                SDL_Rect cl_dst = {x, WH / 2 + y, 1, 1};
-                SDL_RenderCopy(renderer, texture, &cl_src, &cl_dst);
+                Uint32 _pf = get_pixel(texture_img, tx_fl, ty); // Floor
+                Uint32 _pc = get_pixel(texture_img, tx_cl, ty); // Ceiling
 
-                // Ceiling
-                SDL_Rect fl_src = {3 * TEXTURE_WIDTH + tx, ty, 1, 1};
-                SDL_Rect fl_dst = {x, WH / 2 - y, 1, 1};
-                SDL_RenderCopy(renderer, texture, &fl_src, &fl_dst);
+                Uint8 r, g, b;
+                SDL_GetRGB(_pf, texture_img->format, &r, &g, &b);
+
+                Uint32 pixel_floor = correct_pixel(_pf, texture_img);
+                Uint32 pixel_ceiling = correct_pixel(_pc, texture_img);
+                buffer[x + (int)WW * (int)WH / 2 + (int)WW * y] = pixel_floor;
+                buffer[x + (int)WW * (int)WH / 2 - (int)WW * y] = pixel_ceiling;
             }
         }
+        SDL_SetRenderTarget(renderer, floor_texture);
+        SDL_UpdateTexture(floor_texture, NULL, buffer, WW * sizeof(Uint32));
+        SDL_Rect dst = {0, 0, WW, WH};
+        SDL_SetRenderTarget(renderer, NULL);
+        SDL_RenderCopy(renderer, floor_texture, NULL, &dst);
+        SDL_DestroyTexture(floor_texture);
 
         // ---------------
         // Wall casting
         // ---------------
 
+        SDL_SetRenderTarget(renderer, texture);
         for (int x = 0; x < WW; x++) {
             set_color(renderer, orange);
             double _frac = -((2.0 * x / WW) - 1);
@@ -475,7 +530,7 @@ int main(int argc, char* argv[]) {
 
         SDL_Surface* text;
         char* framerate_txt;
-        asprintf(&framerate_txt, "FPS: %f", fps);
+        asprintf(&framerate_txt, "FPS: %d", (int)fps);
         text = TTF_RenderText_Solid(font, framerate_txt, yellow);
         SDL_Texture* text_texture;
         text_texture = SDL_CreateTextureFromSurface(renderer, text);
