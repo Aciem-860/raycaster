@@ -418,7 +418,6 @@ int main(int argc, char* argv[]) {
 
         SDL_SetRenderTarget(renderer, texture);
         for (int x = 0; x < WW; x++) {
-            set_color(renderer, orange);
             double _frac = -((2.0 * x / WW) - 1);
             vector_t _cam_ray = mult_vector(cam_seg, _frac);
             vector_t _ray = add_vector((player.dir), _cam_ray);
