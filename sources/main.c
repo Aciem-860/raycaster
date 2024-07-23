@@ -26,9 +26,9 @@
 #define DELTA_TIME 10
 #define ANGLE_STEP DEG_TO_RAG(10)
 
-#define WW 640.0 // Window width
-#define WH 320.0 // Window height
-#define FOV 66.0 // Field of view in degrees
+#define WW 1280.0 // Window width
+#define WH 640.0  // Window height
+#define FOV 66.0  // Field of view in degrees
 #define DEG_TO_RAG(x) (x * M_PI / 180)
 #define FOVR DEG_TO_RAG(FOV)
 
@@ -307,6 +307,9 @@ int main(int argc, char* argv[]) {
     const int screen_ticks_per_frame = 1000 / screen_fps;
 
     SDL_Surface* texture_img = IMG_Load(textures_path);
+    SDL_Surface* gun_surface = IMG_Load("../gun.png");
+    SDL_Texture* gun_texture;
+
     load_map("../map");
     double angle = 0; // Angle made by dir vector with horizontal axis (left to right)
     double step_forward, step_side;
@@ -352,6 +355,8 @@ int main(int argc, char* argv[]) {
 
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     texture = SDL_CreateTextureFromSurface(renderer, texture_img);
+    gun_texture = SDL_CreateTextureFromSurface(renderer, gun_surface);
+
     SDL_SetWindowGrab(main_window, SDL_TRUE);
     SDL_GetMouseState(&cur_mouse_x, &cur_mouse_y);
     prev_mouse_x = cur_mouse_x;
@@ -373,7 +378,7 @@ int main(int argc, char* argv[]) {
         SDL_Texture* floor_texture =
             SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, WW, WH);
         for (int y = 0; y < WH / 2; y++) {
-            double z = 320.0 / 2;
+            double z = WH / 2;
             // Use Thales' Theorem and similar triangle
             double d = 64 * z / y; // d is the horizontal distance to the ground
             vector_t dir = mult_vector(player.dir, d);
@@ -479,34 +484,31 @@ int main(int argc, char* argv[]) {
             // Rendering the wall vertical stripe
             // ------------------------------------
 
-            SDL_Color wall_color;
             int _text_offset = 0;
             switch (map[_row][_col]) {
-            case 'b':
-                wall_color = blue;
+            case 'b': // Brick Wall
+                _text_offset = 1 * TEXTURE_WIDTH;
+                break;
+            case 'f': // Brick Wall with flag
                 _text_offset = 0;
                 break;
-            case 'r':
-                _text_offset = TEXTURE_WIDTH;
-                wall_color = red;
-                break;
-            case 'g':
+            case 's': // Stone Wall
                 _text_offset = 3 * TEXTURE_WIDTH;
-                wall_color = green;
                 break;
-            case 'w':
+            case 'g': // Blue Brick
+                _text_offset = 4 * TEXTURE_WIDTH;
+                break;
+            case 'w': // Wooden wall
+                _text_offset = 6 * TEXTURE_WIDTH;
+                break;
+            case 'm': // Mossy Stone Wall
+                _text_offset = 5 * TEXTURE_WIDTH;
+                break;
+            case 't': // Terracota Wall
                 _text_offset = 7 * TEXTURE_WIDTH;
-                wall_color = green;
                 break;
             }
 
-            set_color(renderer, wall_color);
-            if (side) {
-                set_color(renderer, wall_color);
-            } else {
-                SDL_Color _c = divide_by(wall_color, 2);
-                set_color(renderer, _c);
-            }
             double _distance = get_distance(player.pos, _hit);
             double _corrected_distance = get_cos(_ray, player.dir) * _distance;
             double _wall_height = 64 * WH / _corrected_distance;
@@ -522,6 +524,16 @@ int main(int argc, char* argv[]) {
                                    (WH + _wall_height) / 2);
             }
         }
+
+        // ---------------------
+        // Rendering gun
+        // ---------------------
+
+        SDL_SetRenderTarget(renderer, gun_texture);
+        const int gun_w = 500;
+        const int gun_h = 500;
+        SDL_Rect gun_dst = {(WW - gun_w) / 2, WH - gun_h, gun_w, gun_h};
+        SDL_RenderCopy(renderer, gun_texture, NULL, &gun_dst);
 
         // ---------------------
         // Framerate printing
@@ -556,7 +568,7 @@ int main(int argc, char* argv[]) {
         }
 
         int mouse_delta = prev_mouse_x - cur_mouse_x;
-        if (abs(mouse_delta) < 100) {
+        if (abs(mouse_delta) < 250) {
             angle += (double)mouse_delta / 500;
         }
 
@@ -632,6 +644,8 @@ int main(int argc, char* argv[]) {
 
 Quit:
     SDL_FreeSurface(texture_img);
+    SDL_DestroyTexture(gun_texture);
+    SDL_FreeSurface(gun_surface);
     if (NULL != texture) {
         SDL_DestroyTexture(texture);
     }
