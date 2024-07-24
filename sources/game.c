@@ -5,6 +5,7 @@
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_render.h>
 #include <SDL2/SDL_surface.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -342,22 +343,43 @@ int start() {
 
         SDL_Surface* prop_surf;
         SDL_Texture* prop_text;
-        for (int prop = 0; prop < prop_number; prop++) {
+
+        real_world_prop_t props_to_render[prop_number];
+        int _nb_props = 0; // Number of props to remder
+
+        for (int i = 0; i < prop_number; i++) {
             // Ray from player to the prop
-            vector_t ray = sub_vector(props[prop].position, player.pos);
+            vector_t ray = sub_vector(props[i].position, player.pos);
             double c = get_cos(ray, player.dir); // Cosine
-            double s = get_cos(ray, cam_seg);    // Sine
             double phi = acos(c);
             double distance = norm2(ray);
-            double orth_distance = distance * c;                         // Orthogonal distance
-            double x_offset = (WW / 2) * (distance * s) / orth_distance; // X-axis offset
+            double orth_distance = distance * c;
 
             if (phi < FOVR / 2) {
+                real_world_prop_t _prop = {props[i], orth_distance};
+                props_to_render[_nb_props++] = _prop;
+            }
+        }
+
+        // Sorting props by distance to the player
+        if (_nb_props > 0) {
+            qsort(props_to_render, _nb_props, sizeof(real_world_prop_t), compare_props);
+
+            for (int p = 0; p < _nb_props; p++) {
+                prop_t _prop = props_to_render[p].prop;
+                // Ray from player to the prop
+                vector_t ray = sub_vector(_prop.position, player.pos);
+                double c = get_cos(ray, player.dir); // Cosine
+                double s = get_cos(ray, cam_seg);    // Sine
+                double distance = norm2(ray);
+                double orth_distance = distance * c;                         // Orthogonal distance
+                double x_offset = (WW / 2) * (distance * s) / orth_distance; // X-axis offset
+
                 double w, h;
                 w = 700 * 64 / orth_distance; // Number of column needed
                 h = 700 * 64 / orth_distance;
 
-                sprite_t sp = get_sprite(props[prop].type);
+                sprite_t sp = get_sprite(_prop.type);
                 prop_surf = IMG_Load(sp.path);
                 prop_text = SDL_CreateTextureFromSurface(renderer, prop_surf);
                 SDL_SetRenderTarget(renderer, prop_text);
@@ -365,7 +387,6 @@ int start() {
                 for (int x = 0; x < w; x++) {
                     int _x = x * 64 / w;
                     if (orth_distance < wall_distance[(int)(WW / 2 - x_offset - w / 2 + x)]) {
-                        sprite_t sp = get_sprite(props[prop].type);
                         SDL_Rect _src = {_x, 0, 1, TILE_HEIGHT};
                         SDL_Rect _dst = {WW / 2 - x_offset - w / 2 + x, WH / 2 - h / 2, 1, h};
                         SDL_RenderCopy(renderer, prop_text, &_src, &_dst);

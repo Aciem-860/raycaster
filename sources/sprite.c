@@ -59,3 +59,18 @@ sprite_t get_sprite(sprite_type type) {
     }
     return empty_sprite;
 }
+
+int compare_props(const void* a, const void* b) {
+    real_world_prop_t ra = *((real_world_prop_t*)a);
+    real_world_prop_t rb = *((real_world_prop_t*)b);
+
+    double da = ra.distance;
+    double db = rb.distance;
+
+    if (da == db)
+        return 0;
+    else if (da > db)
+        return -1;
+    else
+        return 1;
+}
