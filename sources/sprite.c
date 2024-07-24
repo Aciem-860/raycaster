@@ -5,6 +5,10 @@
 static const sprite_t wooden_barrel_sprite = {"../wooden_barrel.png", 64, 64};
 static const sprite_t iron_barrel_sprite = {"../iron_barrel.png", 64, 64};
 static const sprite_t dinner_table_sprite = {"../dinner_table.png", 64, 64};
+static const sprite_t well_water_sprite = {"../well.png", 64, 64};
+static const sprite_t armor_sprite = {"../armor.png", 64, 64};
+static const sprite_t furnace_sprite = {"../furnace.png", 64, 64};
+static const sprite_t pillar_sprite = {"../pillar.png", 64, 64};
 static const sprite_t empty_sprite = {"", 0, 0};
 static sprite_type sprite_char(const char c);
 
@@ -41,6 +45,14 @@ static sprite_type sprite_char(const char c) {
         return IRON_BARREL;
     case 'd':
         return DINNER_TABLE;
+    case 'f':
+        return FURNACE;
+    case 'e':
+        return WELLWATER;
+    case 'a':
+        return ARMOR;
+    case 'p':
+        return PILLAR;
     default:
         return EMPTY;
     }
@@ -56,6 +68,14 @@ sprite_t get_sprite(sprite_type type) {
         return iron_barrel_sprite;
     case DINNER_TABLE:
         return dinner_table_sprite;
+    case ARMOR:
+        return armor_sprite;
+    case FURNACE:
+        return furnace_sprite;
+    case WELLWATER:
+        return well_water_sprite;
+    case PILLAR:
+        return pillar_sprite;
     }
     return empty_sprite;
 }

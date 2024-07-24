@@ -270,10 +270,47 @@ int start() {
                     exit(EXIT_FAILURE);
                 }
 
-                if (map[_row][_col] != '.') {
+                if (map[_row][_col] != '.' || map[_row][_col] == 'p') {
                     break;
                 }
                 p = _hit;
+            }
+
+            // ----------------------
+            // Door rendering
+            // ----------------------
+
+            bool door = false;
+            bool door_tile = (map[_row][_col] == 'p');
+            bool _hitx = hit_x(); // Need to use a copy of hitx because the call to find_next_point
+                                  // in the if statement modifies the global variable named hitx
+
+            if (door_tile) {
+                vector_t ray = sub_vector(_hit, player.pos);
+                vector_t wall_hit = find_next_point(_hit, ray);
+                vector_t door_hit = {0, 0};
+                double slope = differential(ray);
+                double dx, dy, dw, dd;
+
+                if (_hitx) {
+                    dx = cx * (double)TILE_WIDTH / 2;
+                    dy = dx * slope;
+                } else {
+                    dy = cy * (double)TILE_WIDTH / 2;
+                    dx = dy / slope;
+                }
+                door_hit.x = _hit.x + dx;
+                door_hit.y = _hit.y + dy;
+                dd = get_distance(player.pos, door_hit);
+                dw = get_distance(player.pos, wall_hit);
+
+                if (dd < dw) { // Render door
+                    _hit = door_hit;
+                    door = true;
+                } else { // Render wall
+                    _hit = wall_hit;
+                    door = false;
+                }
             }
 
             // ----------------------
@@ -282,8 +319,20 @@ int start() {
 
             int _x = (int)_hit.x;
             int _y = (int)_hit.y;
-            int _xmod = _x % TILE_WIDTH;
-            int _ymod = _y % TILE_HEIGHT;
+            int _xmod, _ymod;
+
+            if (door_tile && door) {
+                if (_hitx) {
+                    _xmod = _x % (TILE_WIDTH / 2);
+                    _ymod = _y % TILE_HEIGHT;
+                } else {
+                    _xmod = _x % TILE_WIDTH;
+                    _ymod = _y % (TILE_HEIGHT / 2);
+                }
+            } else {
+                _xmod = _x % TILE_WIDTH;
+                _ymod = _y % TILE_HEIGHT;
+            }
 
             if (_xmod == 0 && _ymod != 0) {
                 side = 1;
@@ -298,27 +347,35 @@ int start() {
             int _text_offset = 0;
             switch (map[_row][_col]) {
             case 'b': // Brick Wall
-                _text_offset = 1 * TEXTURE_WIDTH;
+                _text_offset = 1;
                 break;
             case 'f': // Brick Wall with flag
                 _text_offset = 0;
                 break;
             case 's': // Stone Wall
-                _text_offset = 3 * TEXTURE_WIDTH;
+                _text_offset = 3;
                 break;
             case 'g': // Blue Brick
-                _text_offset = 4 * TEXTURE_WIDTH;
+                _text_offset = 4;
                 break;
             case 'w': // Wooden wall
-                _text_offset = 6 * TEXTURE_WIDTH;
+                _text_offset = 6;
                 break;
             case 'm': // Mossy Stone Wall
-                _text_offset = 5 * TEXTURE_WIDTH;
+                _text_offset = 5;
                 break;
             case 't': // Terracota Wall
-                _text_offset = 7 * TEXTURE_WIDTH;
+                _text_offset = 7;
+                break;
+            case 'p': // Door
+                if (door)
+                    _text_offset = 8;
+                else
+                    _text_offset = 9;
                 break;
             }
+
+            _text_offset *= TEXTURE_WIDTH;
 
             double _distance = get_distance(player.pos, _hit);
             double _orthogonal_distance = get_cos(_ray, player.dir) * _distance;
@@ -369,8 +426,10 @@ int start() {
                 prop_t _prop = props_to_render[p].prop;
                 // Ray from player to the prop
                 vector_t ray = sub_vector(_prop.position, player.pos);
+
                 double c = get_cos(ray, player.dir); // Cosine
                 double s = get_cos(ray, cam_seg);    // Sine
+
                 double distance = norm2(ray);
                 double orth_distance = distance * c;                         // Orthogonal distance
                 double x_offset = (WW / 2) * (distance * s) / orth_distance; // X-axis offset
@@ -401,9 +460,9 @@ int start() {
         // Rendering gun
         // ---------------------
 
-        SDL_SetRenderTarget(renderer, gun_texture);
         const int gun_w = 500;
         const int gun_h = 500;
+        SDL_SetRenderTarget(renderer, gun_texture);
         SDL_Rect gun_dst = {(WW - gun_w) / 2, WH - gun_h, gun_w, gun_h};
         SDL_RenderCopy(renderer, gun_texture, NULL, &gun_dst);
 

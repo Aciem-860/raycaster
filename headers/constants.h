@@ -13,7 +13,7 @@
 #define ANGLE_STEP DEG_TO_RAG(10)
 
 #define WW 1280.0 // Window width
-#define WH 640.0  // Window height
+#define WH 720.0  // Window height
 #define FOV 90.0  // Field of view in degrees
 #define DEG_TO_RAG(x) (x * M_PI / 180)
 #define FOVR DEG_TO_RAG(FOV)

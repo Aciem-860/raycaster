@@ -50,7 +50,7 @@ static const SDL_Color orange = {0xff, 0xa5, 0x00, 0xff};
 // Player
 // -----------
 
-static const vector_t i_pos = {100, 100};
+static const vector_t i_pos = {96, 64 * 10};
 static const vector_t i_dir = {1, 0};
 static player_t player = {i_pos, i_dir};
 

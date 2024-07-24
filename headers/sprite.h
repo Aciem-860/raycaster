@@ -4,7 +4,16 @@
 #include "constants.h"
 #include "vector.h"
 
-typedef enum { EMPTY, WOODEN_BARREL, IRON_BARREL, DINNER_TABLE } sprite_type;
+typedef enum {
+    EMPTY,
+    WOODEN_BARREL,
+    IRON_BARREL,
+    DINNER_TABLE,
+    FURNACE,
+    ARMOR,
+    WELLWATER,
+    PILLAR
+} sprite_type;
 
 // TODO: Add a field to indicate if this sprite has collision
 typedef struct {
