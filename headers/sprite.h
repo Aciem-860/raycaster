@@ -52,6 +52,15 @@ extern int enemy_index[100];
 extern prop_t props[MAP_HEIGHT * MAP_WIDTH];
 extern int prop_number;
 
+extern const sprite_t wooden_barrel_sprite;
+extern const sprite_t iron_barrel_sprite;
+extern const sprite_t dinner_table_sprite;
+extern const sprite_t well_water_sprite;
+extern const sprite_t armor_sprite;
+extern const sprite_t furnace_sprite;
+extern const sprite_t pillar_sprite;
+extern const sprite_t soldier_sprite;
+extern const sprite_t empty_sprite;
 // ------------------------
 // Functions
 // ------------------------

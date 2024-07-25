@@ -184,6 +184,28 @@ int start() {
     int ammo_cpt = 0;
     int dmg = 1; // Weapon damage
 
+    // ---------------------------
+    // Preload props textures
+    // ---------------------------
+
+    SDL_Surface* wooden_barrel_surf = IMG_Load(wooden_barrel_sprite.path);
+    SDL_Surface* iron_barrel_surf = IMG_Load(iron_barrel_sprite.path);
+    SDL_Surface* dinner_table_surf = IMG_Load(dinner_table_sprite.path);
+    SDL_Surface* well_water_surf = IMG_Load(well_water_sprite.path);
+    SDL_Surface* armor_surf = IMG_Load(armor_sprite.path);
+    SDL_Surface* furnace_surf = IMG_Load(furnace_sprite.path);
+    SDL_Surface* pillar_surf = IMG_Load(pillar_sprite.path);
+    SDL_Surface* soldier_surf = IMG_Load(soldier_sprite.path);
+
+    SDL_Texture* wooden_barrel_text = SDL_CreateTextureFromSurface(renderer, wooden_barrel_surf);
+    SDL_Texture* iron_barrel_text = SDL_CreateTextureFromSurface(renderer, iron_barrel_surf);
+    SDL_Texture* dinner_table_text = SDL_CreateTextureFromSurface(renderer, dinner_table_surf);
+    SDL_Texture* well_water_text = SDL_CreateTextureFromSurface(renderer, well_water_surf);
+    SDL_Texture* armor_text = SDL_CreateTextureFromSurface(renderer, armor_surf);
+    SDL_Texture* furnace_text = SDL_CreateTextureFromSurface(renderer, furnace_surf);
+    SDL_Texture* pillar_text = SDL_CreateTextureFromSurface(renderer, pillar_surf);
+    SDL_Texture* soldier_text = SDL_CreateTextureFromSurface(renderer, soldier_surf);
+
     // --------------------
     // Main game loop
     // --------------------
@@ -414,8 +436,7 @@ int start() {
         // Rendering props & enemies
         // ---------------------------
 
-        SDL_Surface* prop_surf;
-        SDL_Texture* prop_text;
+        SDL_Texture* prop_texture;
 
         // Contains both props and enemies
         real_world_prop_t props_to_render[prop_number];
@@ -455,10 +476,41 @@ int start() {
                 w = 700 * 64 / orth_distance; // Number of column needed
                 h = 700 * 64 / orth_distance;
 
-                sprite_t sp = get_sprite(_prop.type);
-                prop_surf = IMG_Load(sp.path);
-                prop_text = SDL_CreateTextureFromSurface(renderer, prop_surf);
-                SDL_SetRenderTarget(renderer, prop_text);
+                // FIX: Maybe remove this variable if not
+                // used
+                // sprite_t sp = get_sprite(_prop.type);
+
+                switch (_prop.type) {
+                case WOODEN_BARREL:
+                    prop_texture = wooden_barrel_text;
+                    break;
+                case IRON_BARREL:
+                    prop_texture = iron_barrel_text;
+                    break;
+                case DINNER_TABLE:
+                    prop_texture = dinner_table_text;
+                    break;
+                case FURNACE:
+                    prop_texture = furnace_text;
+                    break;
+                case ARMOR:
+                    prop_texture = armor_text;
+                    break;
+                case WELLWATER:
+                    prop_texture = well_water_text;
+                    break;
+                case PILLAR:
+                    prop_texture = pillar_text;
+                    break;
+                case SOLDIER:
+                    prop_texture = soldier_text;
+                    break;
+                default:
+                    fprintf(stderr, "empty prop\n");
+                    break;
+                }
+
+                SDL_SetRenderTarget(renderer, prop_texture);
 
                 for (int x = 0; x < w; x++) {
                     int _x = x * 64 / w;
@@ -469,11 +521,9 @@ int start() {
                             _src.y += 5 * 64;
                         }
                         SDL_Rect _dst = {WW / 2 - x_offset - w / 2 + x, WH / 2 - h / 2, 1, h};
-                        SDL_RenderCopy(renderer, prop_text, &_src, &_dst);
+                        SDL_RenderCopy(renderer, prop_texture, &_src, &_dst);
                     }
                 }
-                SDL_DestroyTexture(prop_text);
-                SDL_FreeSurface(prop_surf);
             }
         }
 
@@ -670,6 +720,24 @@ int start() {
     status = EXIT_SUCCESS;
 
 Quit:
+    SDL_FreeSurface(wooden_barrel_surf);
+    SDL_FreeSurface(iron_barrel_surf);
+    SDL_FreeSurface(dinner_table_surf);
+    SDL_FreeSurface(well_water_surf);
+    SDL_FreeSurface(armor_surf);
+    SDL_FreeSurface(furnace_surf);
+    SDL_FreeSurface(pillar_surf);
+    SDL_FreeSurface(soldier_surf);
+
+    SDL_DestroyTexture(well_water_text);
+    SDL_DestroyTexture(wooden_barrel_text);
+    SDL_DestroyTexture(iron_barrel_text);
+    SDL_DestroyTexture(dinner_table_text);
+    SDL_DestroyTexture(armor_text);
+    SDL_DestroyTexture(furnace_text);
+    SDL_DestroyTexture(pillar_text);
+    SDL_DestroyTexture(soldier_text);
+
     SDL_FreeSurface(texture_img);
     SDL_DestroyTexture(gun_texture);
     SDL_FreeSurface(gun_surface);

@@ -5,18 +5,17 @@
 #define SPRITE_WIDTH 64
 #define SPRITE_HEIGHT 64
 
-static const sprite_t wooden_barrel_sprite = {"../wooden_barrel.png", SPRITE_WIDTH, SPRITE_HEIGHT,
-                                              true, -1};
-static const sprite_t iron_barrel_sprite = {"../iron_barrel.png", SPRITE_WIDTH, SPRITE_HEIGHT, true,
-                                            -1};
-static const sprite_t dinner_table_sprite = {"../dinner_table.png", SPRITE_WIDTH, SPRITE_HEIGHT,
-                                             true, -1};
-static const sprite_t well_water_sprite = {"../well.png", SPRITE_WIDTH, SPRITE_HEIGHT, true, -1};
-static const sprite_t armor_sprite = {"../armor.png", SPRITE_WIDTH, SPRITE_HEIGHT, true, -1};
-static const sprite_t furnace_sprite = {"../furnace.png", SPRITE_WIDTH, SPRITE_HEIGHT, true, -1};
-static const sprite_t pillar_sprite = {"../pillar.png", SPRITE_WIDTH, SPRITE_HEIGHT, true, -1};
-static const sprite_t soldier_sprite = {"../guard.png", SPRITE_WIDTH, SPRITE_HEIGHT, true, 10};
-static const sprite_t empty_sprite = {"", 0, 0, false};
+const sprite_t wooden_barrel_sprite = {"../wooden_barrel.png", SPRITE_WIDTH, SPRITE_HEIGHT, true,
+                                       -1};
+const sprite_t iron_barrel_sprite = {"../iron_barrel.png", SPRITE_WIDTH, SPRITE_HEIGHT, true, -1};
+const sprite_t dinner_table_sprite = {"../dinner_table.png", SPRITE_WIDTH, SPRITE_HEIGHT, true, -1};
+const sprite_t well_water_sprite = {"../well.png", SPRITE_WIDTH, SPRITE_HEIGHT, true, -1};
+const sprite_t armor_sprite = {"../armor.png", SPRITE_WIDTH, SPRITE_HEIGHT, true, -1};
+const sprite_t furnace_sprite = {"../furnace.png", SPRITE_WIDTH, SPRITE_HEIGHT, true, -1};
+const sprite_t pillar_sprite = {"../pillar.png", SPRITE_WIDTH, SPRITE_HEIGHT, true, -1};
+const sprite_t soldier_sprite = {"../guard.png", SPRITE_WIDTH, SPRITE_HEIGHT, true, 10};
+const sprite_t empty_sprite = {"", 0, 0, false};
+
 static sprite_type sprite_char(const char c);
 
 prop_t props[MAP_HEIGHT * MAP_WIDTH];
