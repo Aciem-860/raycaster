@@ -10,6 +10,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+// IDLE: not firing
+// LOADING: start to fire (for minigun, not for gun, consists in 2 first frames)
+// FIRING: firing animation
+typedef enum { IDLE, LOADING, FIRING } gun_anim_state;
+static gun_anim_state gun_state = IDLE;
+
 void load_map(const char* path) {
     FILE* map_file;
     map_file = fopen(path, "r");
@@ -98,7 +104,7 @@ int start() {
     SDL_Renderer* renderer = NULL;
 
     SDL_Surface* texture_img = IMG_Load(textures_path);
-    SDL_Surface* gun_surface = IMG_Load("../gun.png");
+    SDL_Surface* gun_surface = IMG_Load("../minigun.png");
 
     int status = EXIT_FAILURE;
 
@@ -157,6 +163,12 @@ int start() {
     double fps = 0;
 
     // --------------------------
+    // Animation
+    // --------------------------
+
+    int anim_frame = 0;
+
+    // --------------------------
     // Raycasting parameters
     // --------------------------
 
@@ -167,6 +179,10 @@ int start() {
     // Loading the map
     load_map("../map");
     load_sprite_map("../sprite_map");
+
+    // Number of frame before remove 1 bullet
+    int ammo_cpt = 0;
+    int dmg = 1; // Weapon damage
 
     // --------------------
     // Main game loop
@@ -202,7 +218,7 @@ int start() {
 
             for (int x = 0; x < WW; x++) {
                 int tx_fl = 6 * TEXTURE_WIDTH + (int)floor.x % TEXTURE_WIDTH;
-                int tx_cl = 4 * TEXTURE_WIDTH + (int)floor.x % TEXTURE_WIDTH;
+                int tx_cl = 10 * TEXTURE_WIDTH + (int)floor.x % TEXTURE_WIDTH;
                 int ty = (int)floor.y % TEXTURE_HEIGHT;
                 floor.x += floor_step_x;
                 floor.y += floor_step_y;
@@ -394,15 +410,16 @@ int start() {
             }
         }
 
-        // ---------------------
-        // Rendering props
-        // ---------------------
+        // ---------------------------
+        // Rendering props & enemies
+        // ---------------------------
 
         SDL_Surface* prop_surf;
         SDL_Texture* prop_text;
 
+        // Contains both props and enemies
         real_world_prop_t props_to_render[prop_number];
-        int _nb_props = 0; // Number of props to remder
+        int _nb_props = 0; // Number of props to render
 
         for (int i = 0; i < prop_number; i++) {
             // Ray from player to the prop
@@ -447,6 +464,10 @@ int start() {
                     int _x = x * 64 / w;
                     if (orth_distance < wall_distance[(int)(WW / 2 - x_offset - w / 2 + x)]) {
                         SDL_Rect _src = {_x, 0, 1, TILE_HEIGHT};
+                        if (_prop.type == SOLDIER && _prop.state == PROP_DEAD) {
+                            _src.x += 4 * 64;
+                            _src.y += 5 * 64;
+                        }
                         SDL_Rect _dst = {WW / 2 - x_offset - w / 2 + x, WH / 2 - h / 2, 1, h};
                         SDL_RenderCopy(renderer, prop_text, &_src, &_dst);
                     }
@@ -463,8 +484,65 @@ int start() {
         const int gun_w = 500;
         const int gun_h = 500;
         SDL_SetRenderTarget(renderer, gun_texture);
-        SDL_Rect gun_dst = {(WW - gun_w) / 2, WH - gun_h, gun_w, gun_h};
-        SDL_RenderCopy(renderer, gun_texture, NULL, &gun_dst);
+
+        int factor = 5;
+        int offset = 0;
+        int nb_frame = 4;
+
+        if (is_firing && ammo) {
+            offset = anim_frame / factor;
+            if (gun_state == IDLE) {
+                gun_state = LOADING;
+            } else if (gun_state == LOADING && offset == 3) {
+                gun_state = FIRING;
+            } else if (gun_state == FIRING) {
+                offset += 2;
+                nb_frame = 2;
+            }
+            ammo_cpt++;
+            if (ammo_cpt == 3) {
+                ammo--;
+                ammo_cpt = 0;
+            }
+        } else {
+            gun_state = IDLE;
+        }
+
+        SDL_Rect gun_src = {offset * 128, 0, 128, 128};
+        SDL_Rect gun_dst = {(WW - gun_w) / 2, WH - gun_h + 100, gun_w, gun_h};
+        SDL_RenderCopy(renderer, gun_texture, &gun_src, &gun_dst);
+
+        anim_frame = (anim_frame + 1) % (nb_frame * factor);
+
+        // ------------------------------------
+        // Check if an enemy has been hit
+        // ------------------------------------
+
+        // Check only visible props
+        if (is_firing && gun_state == FIRING) {
+            for (int i = 0; i < 100; i++) {
+                if (enemy_index[i] == -1) {
+                    break;
+                }
+
+                prop_t* prop = &props[enemy_index[i]];
+                if (prop->state == PROP_DEAD) {
+                    break;
+                }
+                vector_t ray = sub_vector(prop->position, player.pos);
+                double cs = get_cos(ray, player.dir);
+                double dist = cs * norm2(ray);
+                if (dist < wall_distance[(int)WW / 2]) {
+                    if (100 * cs >= 100 - 0.1) { // An enemy has been hit
+                        if (prop->life > 0) {
+                            prop->life -= dmg;
+                        } else {
+                            prop->state = PROP_DEAD;
+                        }
+                    }
+                }
+            }
+        }
 
         // ---------------------
         // Framerate printing
@@ -472,7 +550,7 @@ int start() {
 
         SDL_Surface* text;
         char* framerate_txt;
-        asprintf(&framerate_txt, "FPS: %d", (int)fps);
+        asprintf(&framerate_txt, "FPS: %d              AMMO: %d", (int)fps, ammo);
         text = TTF_RenderText_Solid(font, framerate_txt, yellow);
         SDL_Texture* text_texture;
         text_texture = SDL_CreateTextureFromSurface(renderer, text);
@@ -524,9 +602,18 @@ int start() {
                 case SDLK_d:
                     step_side -= STEP_SIDE;
                     break;
+                case SDLK_k:
+                    ammo = 100;
+                    break;
                 default:
                     break;
                 }
+                break;
+            case SDL_MOUSEBUTTONDOWN:
+                is_firing = true;
+                break;
+            case SDL_MOUSEBUTTONUP:
+                is_firing = false;
                 break;
             case SDL_QUIT:
                 quit = true;
@@ -536,9 +623,9 @@ int start() {
             }
         }
 
-        // ---------------------
-        // Player movement
-        // ---------------------
+        // ------------------------------------
+        // Player movement and collision
+        // ------------------------------------
 
         vector_t _rot_dir = rotate_vector(player.dir, angle);
         player.dir = _rot_dir;
@@ -553,7 +640,14 @@ int start() {
         int _x = (int)_new_pos.x;
         int _y = (int)_new_pos.y;
 
-        if (map[_y / TILE_HEIGHT][_x / TILE_WIDTH] == '.') {
+        prop_t* collided_prop = sprite_at_pos(_x, _y);
+        bool collided = false;
+        if (collided_prop != EMPTY) {
+            sprite_t sprite = get_sprite(collided_prop->type);
+            collided = sprite.collision && collided_prop->state != PROP_DEAD;
+        }
+
+        if (map[_y / TILE_HEIGHT][_x / TILE_WIDTH] == '.' && !collided) {
             player.pos.x = _new_pos.x;
             player.pos.y = _new_pos.y;
         }

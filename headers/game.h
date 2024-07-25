@@ -54,6 +54,9 @@ static const vector_t i_pos = {96, 64 * 10};
 static const vector_t i_dir = {1, 0};
 static player_t player = {i_pos, i_dir};
 
+static bool is_firing;
+static int ammo = 100;
+
 // -------------------
 // Mouse variables
 // -------------------
