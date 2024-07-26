@@ -16,6 +16,10 @@
 typedef enum { IDLE, LOADING, FIRING } gun_anim_state;
 static gun_anim_state gun_state = IDLE;
 
+// 64: door is fully closed
+// 0 : door is fully opened
+int door_timer = 64;
+
 void load_map(const char* path) {
     FILE* map_file;
     map_file = fopen(path, "r");
@@ -93,6 +97,62 @@ static bool hit_x() { return hitx; }
 static bool hit_y() { return hity; }
 static bool forward_x() { return cx == 1 ? true : false; }
 static bool forward_y() { return cy == 1 ? true : false; }
+
+static bool door_opening = false;
+
+// Returns true if it hits a door
+bool get_wall_hit(vector_t pos, vector_t dir, double frac, bool ignore_door, vector_t* hit,
+                  vector_t* ray, int* col, int* row) {
+    vector_t _cam_ray = mult_vector(camera_segment(player), frac);
+    vector_t _ray = add_vector((player.dir), _cam_ray);
+    vector_t _hit = find_next_point(player.pos, _ray); // Intersection with grid
+    int _col, _row;
+    vector_t p = player.pos;
+    bool ret = false;
+
+    for (int i = 0; i < 30; i++) {
+        _hit = find_next_point(p, _ray);
+        // set_color(top_renderer, yellow);
+
+        _col = (int)_hit.x / TILE_WIDTH;
+        _row = (int)_hit.y / TILE_HEIGHT;
+
+        // Start by correction if a ray hits the top-left corner
+        if ((int)_hit.x % TILE_WIDTH == 0 && (int)_hit.y % TILE_HEIGHT == 0 &&
+            map[_row][_col] == '.') {
+            if (cy == -1) {
+                _row--;
+            }
+            if (cx == -1) {
+                _col--;
+            }
+        } else if (hit_x()) {
+            if (!forward_x()) {
+                _col--;
+            }
+        } else if (hit_y()) {
+            if (!forward_y()) {
+                _row--;
+            }
+        } else {
+            fprintf(stderr, "[ ERROR ] Should have hit something\n");
+            exit(EXIT_FAILURE);
+        }
+
+        if (map[_row][_col] == 'p' && !ignore_door) {
+            ret = true;
+            break;
+        } else if (map[_row][_col] != '.' && map[_row][_col] != 'p') {
+            break;
+        }
+        p = _hit;
+    }
+    *ray = _ray;
+    *hit = _hit;
+    *col = _col;
+    *row = _row;
+    return ret;
+}
 
 int start() {
 
@@ -211,6 +271,15 @@ int start() {
     // --------------------
 
     while (!quit) {
+
+        if (door_opening) {
+            door_timer -= 1;
+            if (door_timer < 0) {
+                door_timer = 0;
+                door_opening = false;
+            }
+        }
+
         start_ticks = SDL_GetTicks();
 
         // Clear the screen
@@ -273,61 +342,33 @@ int start() {
 
         for (int x = 0; x < WW; x++) {
             double _frac = -((2.0 * x / WW) - 1);
-            vector_t _cam_ray = mult_vector(cam_seg, _frac);
-            vector_t _ray = add_vector((player.dir), _cam_ray);
-            vector_t _hit = find_next_point(player.pos, _ray); // Intersection with grid
-
-            vector_t p = player.pos;
             int _col, _row;
-            for (int i = 0; i < 30; i++) {
-                _hit = find_next_point(p, _ray);
-                // set_color(top_renderer, yellow);
 
-                _col = (int)_hit.x / TILE_WIDTH;
-                _row = (int)_hit.y / TILE_HEIGHT;
-
-                // Start by correction if a ray hits the top-left corner
-                if ((int)_hit.x % TILE_WIDTH == 0 && (int)_hit.y % TILE_HEIGHT == 0 &&
-                    map[_row][_col] == '.') {
-                    if (cy == -1) {
-                        _row--;
-                    }
-                    if (cx == -1) {
-                        _col--;
-                    }
-                } else if (hit_x()) {
-                    if (!forward_x()) {
-                        _col--;
-                    }
-                } else if (hit_y()) {
-                    if (!forward_y()) {
-                        _row--;
-                    }
-                } else {
-                    fprintf(stderr, "[ ERROR ] Should have hit something\n");
-                    exit(EXIT_FAILURE);
-                }
-
-                if (map[_row][_col] != '.' || map[_row][_col] == 'p') {
-                    break;
-                }
-                p = _hit;
-            }
+            vector_t _hit = {0, 0};
+            vector_t _ray = {0, 0};
+            bool door_tile =
+                get_wall_hit(player.pos, player.dir, _frac, false, &_hit, &_ray, &_col, &_row);
 
             // ----------------------
             // Door rendering
             // ----------------------
 
             bool door = false;
-            bool door_tile = (map[_row][_col] == 'p');
             bool _hitx = hit_x(); // Need to use a copy of hitx because the call to find_next_point
                                   // in the if statement modifies the global variable named hitx
 
             if (door_tile) {
-                vector_t ray = sub_vector(_hit, player.pos);
-                vector_t wall_hit = find_next_point(_hit, ray);
+                // vector_t ray = sub_vector(_hit, player.pos);
+                vector_t wall_hit = {0, 0};
+
+                // vector_t _ray;
+                int __col, __row;
+
+                get_wall_hit(player.pos, _ray, _frac, true, &wall_hit, &_ray, &__col, &__row);
+
+                //  vector_t wall_hit = find_next_point(_hit, ray);
                 vector_t door_hit = {0, 0};
-                double slope = differential(ray);
+                double slope = differential(_ray);
                 double dx, dy, dw, dd;
 
                 if (_hitx) {
@@ -343,8 +384,23 @@ int start() {
                 dw = get_distance(player.pos, wall_hit);
 
                 if (dd < dw) { // Render door
-                    _hit = door_hit;
-                    door = true;
+                    // Check if the door hit is open
+                    int _length;
+                    if (_hitx) {
+                        _length = ((int)door_hit.y % TILE_HEIGHT);
+                    } else {
+                        _length = ((int)door_hit.x % TILE_WIDTH);
+                    }
+                    if (_length <= door_timer) {
+                        _hit = door_hit;
+                        door = true;
+                    } else {
+                        door_tile = false;
+                        door = false;
+                        _hit = wall_hit;
+                        _col = __col;
+                        _row = __row;
+                    }
                 } else { // Render wall
                     _hit = wall_hit;
                     door = false;
@@ -412,6 +468,9 @@ int start() {
                     _text_offset = 9;
                 break;
             }
+            /* if (door_tile && door) {
+                _text_offset = 8;
+            } */
 
             _text_offset *= TEXTURE_WIDTH;
 
@@ -422,6 +481,11 @@ int start() {
             wall_distance[x] = _orthogonal_distance;
 
             SDL_Rect src = {_text_offset + _frac_text, 0, 1, TEXTURE_HEIGHT};
+
+            if (door) {
+                src.x += 64 - door_timer;
+            }
+
             SDL_Rect dst = {x, (WH - _wall_height) / 2, 1, _wall_height};
             SDL_RenderCopy(renderer, wall_texture, &src, &dst);
             if (!side) {
@@ -475,10 +539,6 @@ int start() {
                 double w, h;
                 w = 700 * 64 / orth_distance; // Number of column needed
                 h = 700 * 64 / orth_distance;
-
-                // FIX: Maybe remove this variable if not
-                // used
-                // sprite_t sp = get_sprite(_prop.type);
 
                 switch (_prop.type) {
                 case WOODEN_BARREL:
@@ -577,7 +637,7 @@ int start() {
 
                 prop_t* prop = &props[enemy_index[i]];
                 if (prop->state == PROP_DEAD) {
-                    break;
+                    continue;
                 }
                 vector_t ray = sub_vector(prop->position, player.pos);
                 double cs = get_cos(ray, player.dir);
@@ -655,6 +715,9 @@ int start() {
                 case SDLK_k:
                     ammo = 100;
                     break;
+                case SDLK_u:
+                    door_opening = true;
+                    false;
                 default:
                     break;
                 }
